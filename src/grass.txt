@@ -1,0 +1,97 @@
+I now want you to generate procedural grass in around all vertices that have been turned green by the player passing over them.
+You should use a two-pass compute pipeline -> GPU driven for indirect draw
+
+It should start with a compute shader that computes the positions for each blade of grass. Maybe you subdivide the sphere and around each vertex marked green, halfway to the neighbouring vertices you define a tile region.
+
+Then within this tile a compute shader assign random position to a number of grass blades, proportional to the area of the tile
+
+I found some code online that does something like this but for a flat plane with square tiles. maybe you can be inspired by this
+
+---------------------------------------------------------------------------------------
+const GRASS_BLADES          = 1024;
+const GRASS_BLADE_VERTICES  = 15;
+
+function CreateTileGeometry() {
+  for (let i = 0; i < NUM_GRASS_X; ++i) {
+    const x = (i / NUM_GRASS_Y) - 0.5;
+    for (let j = 0; j < NUM_GRASS_X; ++j) {
+      const y = (j / NUM_GRASS_Y) - 0.5;
+      offsets.push(x * GRASS_PATCH_SIZE + math.rand_range(-0.2, 0.2));
+      offsets.push(y * GRASS_PATCH_SIZE + math.rand_range(-0.2, 0.2));
+      offsets.push(0);
+    }
+  }
+
+  const offsetsData = offsets.map(THREE.DataUtils.toHalfFloat);
+
+  const vertID = new Uint8Array(GRASS_BLADE_VERTICES);
+  for (let i = 0; i < VERTICES; ++i) {
+    vertID[i] = i;
+  }
+
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.instanceCount = GRASS_BLADES;
+  geo.setAttribute(
+    'vertIndex',
+    new THREE.Uint8BufferAttribute(vertID, 1),
+  );
+  geo.setAttribute(
+    'position',
+    new InstancedFloat16BufferAttribute(offsetsData, 3),
+  );
+  geo.setIndex(CreateIndexBuffer());
+  return geo;
+}
+---------------------------------------------------------------------------------------
+
+you can also rotate the grass blades ranodmly using something similar to
+
+---------------------------------------------------------------------------------------
+float perBladeHash = hash12(grassBladeWorldPos.xz);
+float randomAngle  = perBladeHash * 2.0 * 3.14159;
+---------------------------------------------------------------------------------------
+
+dont forget that the grass should be facing along the surface normals of the worldsphere
+
+Then to give the grass blades some shape we can bend them using something similar to
+
+---------------------------------------------------------------------------------------
+// Surprisingly, this works pretty ok
+float curveAmount = randomLean * heightPercent;
+
+// Create a 3×3 rotation matrix around the X-axis
+mat3 grassMat = rotateX(curveAmount);
+
+// Now generate the grass vertex position
+vec3 grassVertexPosition = grassMat * vec3(x, y, 0.0);
+---------------------------------------------------------------------------------------
+ 
+ Note that since we are placing the grass blades on the surface of a sphere and orienting them to the normals of that surface
+ we may need to be careful how we do this. Perhaps there is an easier way, like generating the grass flat and at the end transforming it. 
+ Use your best judgement I am not sure.
+
+Now we want to give the grass a more curved look along its short axis. we can do this via vertex and fragment shaders something like this
+---------------------------------------------------------------------------------------
+ // VERTEX SHADER
+vec3 rotatedNormal1 = rotateY(PI * 0.3)  * grassVertexNormal;
+vec3 rotatedNormal2 = rotateY(PI * -0.3) * grassVertexNormal;
+
+// FRAGMENT SHADER
+float normalMixFactor = widthPercent;
+
+// The rotated normals are just generated
+// in the vertex shader by rotating slightly on
+// the Y axis (before any other transformations).
+vec3 normal = mix(
+    rotatedNormal1,
+    rotatedNormal2,
+    normalMixFactor
+);
+normal = normalize(normal);
+---------------------------------------------------------------------------------------
+
+
+I will have more additions to the grass for you later but lets see if we can get this part working. Again think deeply about how to implement this on a rounded sphere and only around the vertices which the player has colored already
+
+ 
+ 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Player } from './player';
 import { WorldSphere } from './sphere';
+import { GrassSystem } from './grassSystem';
 
 export class Game {
   private scene: THREE.Scene;
@@ -8,6 +9,7 @@ export class Game {
   private renderer: THREE.WebGLRenderer;
   private player: Player;
   private worldSphere: WorldSphere;
+  private grassSystem!: GrassSystem; // Using definite assignment assertion
   private isRunning: boolean = false;
   private sphereRadius: number = 40;
   private coverageProgress: HTMLElement | null = null;
@@ -74,6 +76,9 @@ export class Game {
     // Set player position on sphere surface
     this.player.setPosition(0, 1, this.sphereRadius); // Slightly raise player for better visibility
 
+    // Initialize grass system
+    this.grassSystem = new GrassSystem(this.scene, this.worldSphere.getMesh());
+
     // Now that player is initialized, set up the gradient background
     this.setupGradientBackground();
 
@@ -99,6 +104,9 @@ export class Game {
     // Remove event listeners
     window.removeEventListener('keydown', this.handleKeyDown.bind(this));
     window.removeEventListener('keyup', this.handleKeyUp.bind(this));
+    
+    // Clean up resources
+    this.grassSystem.dispose();
   }
 
   private animate(): void {
@@ -122,6 +130,10 @@ export class Game {
     
     // Update coverage UI
     this.updateCoverageUI(coveragePercentage);
+    
+    // Update grass system with fertile vertices
+    const fertileVertices = this.worldSphere.getFertileVertices();
+    this.grassSystem.update(fertileVertices);
     
     // Update particles in scene
     const particles = this.player.getParticles();

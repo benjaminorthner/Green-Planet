@@ -38,7 +38,7 @@ export class WorldSphere {
     // Initialize noise generator with a random seed
     this.noise = new PerlinNoise(Math.random() * 1000);
     
-    // Create sphere geometry
+    // Revert back to sphere geometry with high segment count
     const geometry = new THREE.SphereGeometry(radius, segments, segments);
     
     // Store original vertex positions for visited vertex tracking
@@ -384,7 +384,9 @@ export class WorldSphere {
     }
   }
   
-  // Get fertile vertices for future grass growth
+  // Get all fertile vertices for future grass growth
+  // Returns ALL vertices that have been marked as visited, not just the ones near the player's current position
+  // This ensures grass grows on all visited areas, even if the player moved quickly over them
   public getFertileVertices(): Array<{index: number, position: THREE.Vector3, normal: THREE.Vector3, fertility: number}> {
     const fertileVertices: Array<{index: number, position: THREE.Vector3, normal: THREE.Vector3, fertility: number}> = [];
     const geometry = this.mesh.geometry as THREE.BufferGeometry;
