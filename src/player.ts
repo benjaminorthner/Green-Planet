@@ -20,7 +20,7 @@ export class Player {
   private particles: THREE.Mesh[] = [];
   private particleGeometry: THREE.SphereGeometry;
   private particleMaterial: THREE.MeshStandardMaterial;
-  private emissionRate: number = 10; // Particles per frame
+  private emissionRate: number = 1; // Particles per frame
   private emissionTimer: number = 0;
   private gravity: number = 0.01;
   private particleLifetime: number = 200; // Frames before particle is removed

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Constants for grass generation
-const GRASS_BLADES_PER_VERTEX = 200; // Number of grass blades per fertile vertex
+const GRASS_BLADES_PER_VERTEX = 150; // Number of grass blades per fertile vertex
 const GRASS_BLADE_SEGMENTS = 5; // Number of segments per blade (for bending)
 const GRASS_BLADE_HEIGHT = 1; // Height of each grass blade
 const GRASS_BLADE_WIDTH = 0.1; // Width of each grass blade
@@ -12,6 +12,10 @@ export class GrassSystem {
   private grassMesh: THREE.InstancedMesh | null = null;
   private grassGeometry: THREE.BufferGeometry | null = null;
   private grassMaterial: THREE.ShaderMaterial | null = null;
+  private sunPosition: THREE.Vector3 = new THREE.Vector3(1, 1, 1).normalize();
+  private sunColor: THREE.Color = new THREE.Color(0xffffcc);
+  private moonPosition: THREE.Vector3 = new THREE.Vector3(-1, -1, -1).normalize();
+  private moonColor: THREE.Color = new THREE.Color(0xaaccff);
   private grassPositions: Float32Array | null = null;
   private grassNormals: Float32Array | null = null;
   private grassRandoms: Float32Array | null = null;
@@ -42,7 +46,12 @@ export class GrassSystem {
       side: THREE.DoubleSide,
       uniforms: {
         time: { value: 0 },
-        lightDirection: { value: new THREE.Vector3(0.5, 1.0, 0.5).normalize() }
+        sunDirection: { value: this.sunPosition.clone() },
+        sunColor: { value: this.sunColor.clone() },
+        moonDirection: { value: this.moonPosition.clone() },
+        moonColor: { value: this.moonColor.clone() },
+        vertexPosition: { value: new THREE.Vector3() },
+        grassWidth: { value: GRASS_BLADE_WIDTH }
       }
     });
 
@@ -130,6 +139,26 @@ export class GrassSystem {
     // Update time uniform for animation (wind effect)
     if (this.grassMaterial) {
       this.grassMaterial.uniforms.time.value = performance.now() / 1000;
+      
+      // Update sun and moon positions from the worldSphere
+      if (this.worldSphere.children && this.worldSphere.children.length > 0) {
+        // Find sun and moon directional lights
+        this.worldSphere.children.forEach(child => {
+          if (child instanceof THREE.DirectionalLight) {
+            if (child.position.x > 0) { // Sun is in the positive direction
+              this.sunPosition.copy(child.position.clone().normalize());
+              this.grassMaterial!.uniforms.sunDirection.value = this.sunPosition;
+              this.sunColor.copy(new THREE.Color(child.color));
+              this.grassMaterial!.uniforms.sunColor.value = this.sunColor;
+            } else { // Moon is in the negative direction
+              this.moonPosition.copy(child.position.clone().normalize());
+              this.grassMaterial!.uniforms.moonDirection.value = this.moonPosition;
+              this.moonColor.copy(new THREE.Color(child.color));
+              this.grassMaterial!.uniforms.moonColor.value = this.moonColor;
+            }
+          }
+        });
+      }
     }
   }
 
@@ -164,7 +193,7 @@ export class GrassSystem {
       for (let i = 0; i < bladesForVertex && this.grassCount + newBlades < this.maxGrassCount; i++) {
         // Generate random offset with smaller radius to keep grass blades closer to the vertex
         // This ensures more grass blades are rendered within the visible region
-        const randomRadius = 0 + 1 * Math.random(); // Reduced range from 0.1 to 0.4
+        const randomRadius = Math.random(); // Reduced range from 0.1 to 0.4
         const randomAngle = Math.random() * Math.PI * 2;
         
         // Create tangent space for the vertex
@@ -192,27 +221,33 @@ export class GrassSystem {
         const randomRotation = Math.random() * Math.PI * 2;
         quaternion.setFromAxisAngle(normal, randomRotation);
         
-        // Create a modified normal that's biased towards the global up direction
-        // This ensures grass blades face mostly upwards with only slight angle variation
-        const globalUp = new THREE.Vector3(0, 1, 0);
+        // Make grass grow straight out of the surface (perpendicular to the sphere)
+        // This is the most natural orientation for grass on a sphere
         const modifiedNormal = new THREE.Vector3().copy(normal);
         
-        // Blend between the surface normal and global up vector
-        // Higher weight for global up (0.7) ensures grass points mostly upwards
-        modifiedNormal.lerp(globalUp, 0.0).normalize();
-        
-        // Align blade with the modified no1al
+        // Align blade with the surface normal
         const upVector = new THREE.Vector3(0, 1, 0);
         const alignQuat = new THREE.Quaternion().setFromUnitVectors(upVector, modifiedNormal);
         
         // Reset any previous rotation and apply only the alignment to modified normal
         quaternion.copy(alignQuat);
         
-        // Then apply a limited random rotation around the normal axis
-        // Limit the rotation to a smaller range for more consistent orientation
-        const limitedRandomRotation = 0.5*(Math.random() * 0.5 - 0.25) * Math.PI; // -45 to +45 degrees
-        const rotationAroundNormal = new THREE.Quaternion().setFromAxisAngle(normal, limitedRandomRotation);
+        // Apply a small random rotation around the normal axis
+        // This creates natural variation in the grass orientation
+        const randomRotationAngle = (Math.random() * 0.3 - 0.15) * Math.PI; // -27 to +27 degrees
+        const rotationAroundNormal = new THREE.Quaternion().setFromAxisAngle(normal, randomRotationAngle);
         quaternion.multiply(rotationAroundNormal);
+        
+        // Apply a small random bending in a random direction
+        // This makes the grass look more natural with slight bending
+        const bendAxis = new THREE.Vector3(
+          Math.random() * 2 - 1,
+          0,
+          Math.random() * 2 - 1
+        ).normalize();
+        const bendAngle = Math.random() * 0.2; // 0 to 0.2 radians (0 to ~11.5 degrees)
+        const bendQuat = new THREE.Quaternion().setFromAxisAngle(bendAxis, bendAngle);
+        quaternion.multiply(bendQuat);
         
         // Random scale variation
         const heightScale = 0.8 + Math.random() * 0.4;
@@ -239,10 +274,19 @@ export class GrassSystem {
       attribute float vertIndex;
       
       uniform float time;
+      uniform vec3 sunDirection;
+      uniform vec3 moonDirection;
+      uniform float grassWidth;
       
       varying vec2 vUv;
       varying vec3 vNormal;
       varying float vHeight;
+      varying vec3 vWorldPosition;
+      
+      // Helper function for easing out (similar to the one in the provided code)
+      float easeOut(float x, float power) {
+        return 1.0 - pow(1.0 - x, power);
+      }
       
       // Function to create a rotation matrix around X axis
       mat3 rotateX(float angle) {
@@ -312,24 +356,75 @@ export class GrassSystem {
         vNormal = mix(rotatedNormal1, rotatedNormal2, uv.x);
         vNormal = normalize(vNormal);
         
-        // Final position
+        // Convert to model-view space for view-dependent effects
+        vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(transformedPosition, 1.0);
+        
+        // Calculate view direction in model-view space
+        vec3 viewDir = normalize(-mvPosition.xyz);
+        
+        // Calculate grass face normal in model-view space
+        // We use the cross product of the blade's up direction and right direction
+        vec3 grassUpDir = normalize(mat3(modelViewMatrix * instanceMatrix) * vec3(0.0, 1.0, 0.0));
+        vec3 grassRightDir = normalize(mat3(modelViewMatrix * instanceMatrix) * vec3(1.0, 0.0, 0.0));
+        vec3 grassFaceNormal = normalize(cross(grassUpDir, grassRightDir));
+        
+        // Calculate the dot product of view direction and grass normal
+        // We use the xz components to focus on the horizontal plane
+        float viewDotNormal = max(0.0, dot(normalize(grassFaceNormal.xy), normalize(viewDir.xy)));
+        
+        // Calculate the view-space thicken factor (reduced power from 4.0 to 2.0 for a more subtle effect)
+        float viewSpaceThickenFactor = easeOut(1.0 - viewDotNormal, 2.0);
+        
+        // Allow thinning when blade is nearly orthogonal to view (widened range for smoother transition)
+        viewSpaceThickenFactor *= smoothstep(0.0, 0.3, viewDotNormal);
+        
+        // Scale down the overall effect to make it more subtle (reduce by 60%)
+        viewSpaceThickenFactor *= 0.4;
+        
+        // Apply view-space width adjustment based on uv.x (left/right side of blade)
+        float xDirection = (uv.x - 0.5) * 2.0; // -1 to 1
+        
+        // Scale the thickening factor based on height to preserve the pointed tip
+        // Gradually reduce the effect as we approach the tip
+        float tipTaper = 1.0 - pow(heightPercent, 2.0); // Quadratic falloff towards tip
+        
+        // Apply the view-space adjustment with a more subtle effect
+        // Preserve the pointed tip by scaling the effect
+        mvPosition.xy += viewSpaceThickenFactor * xDirection * grassWidth * tipTaper * vec2(grassRightDir.xy);
+        
+        // Convert back to clip space
         vec4 worldPosition = instanceMatrix * vec4(transformedPosition, 1.0);
+        vWorldPosition = worldPosition.xyz;
         gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        
+        // Override with the adjusted position
+        gl_Position = projectionMatrix * mvPosition;
       }
     `;
   }
 
   private getGrassFragmentShader(): string {
     return `
-      uniform vec3 lightDirection;
+      uniform vec3 sunDirection;
+      uniform vec3 sunColor;
+      uniform vec3 moonDirection;
+      uniform vec3 moonColor;
       
       varying vec2 vUv;
       varying vec3 vNormal;
       varying float vHeight;
+      varying vec3 vWorldPosition;
       
       void main() {
-        // Calculate lighting
-        float light = max(0.2, dot(normalize(vNormal), normalize(lightDirection)));
+        vec3 normal = normalize(vNormal);
+        
+        // Calculate sun lighting
+        float sunDot = max(0.0, dot(normal, normalize(sunDirection)));
+        float sunLight = 0.2 + 0.8 * sunDot; // Ambient + diffuse
+        
+        // Calculate moon lighting
+        float moonDot = max(0.0, dot(normal, normalize(moonDirection)));
+        float moonLight = 0.1 + 0.4 * moonDot; // Ambient + diffuse (moon is dimmer)
         
         // Base color (darker at bottom, lighter at top)
         vec3 grassColor = mix(
@@ -338,8 +433,24 @@ export class GrassSystem {
           vHeight
         );
         
-        // Apply lighting
-        vec3 finalColor = grassColor * light;
+        // Calculate the angle between the vertex position and sun/moon
+        // This helps determine if we're on the day or night side of the planet
+        vec3 vertexDir = normalize(vWorldPosition);
+        float sunSide = dot(vertexDir, normalize(sunDirection));
+        float moonSide = dot(vertexDir, normalize(moonDirection));
+        
+        // Blend between sun and moon lighting based on which side we're on
+        // Use a smooth transition between day and night
+        float dayFactor = smoothstep(-0.2, 0.2, sunSide - moonSide);
+        
+        // Apply sun lighting with sun color
+        vec3 sunLit = grassColor * sunLight * sunColor;
+        
+        // Apply moon lighting with moon color
+        vec3 moonLit = grassColor * moonLight * moonColor;
+        
+        // Blend between sun and moon lighting
+        vec3 finalColor = mix(moonLit, sunLit, dayFactor);
         
         // Add slight ambient occlusion at the base
         finalColor *= mix(0.7, 1.0, vHeight);

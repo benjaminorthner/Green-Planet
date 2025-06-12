@@ -162,7 +162,7 @@ export class Game {
   }
 
   private updateMovement(): void {
-    const moveSpeed = 0.05; // Adjusted for player movement
+    const moveSpeed = 0.02; // Adjusted for player movement
     
     // Get player position and create tangent space for movement
     const playerPos = this.player.getMesh().position.clone();
