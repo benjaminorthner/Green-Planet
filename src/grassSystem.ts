@@ -51,7 +51,8 @@ export class GrassSystem {
         moonDirection: { value: this.moonPosition.clone() },
         moonColor: { value: this.moonColor.clone() },
         vertexPosition: { value: new THREE.Vector3() },
-        grassWidth: { value: GRASS_BLADE_WIDTH }
+        grassWidth: { value: GRASS_BLADE_WIDTH },
+        grassDensity: { value: 1.0 }
       }
     });
 
@@ -174,6 +175,10 @@ export class GrassSystem {
     // Track new blades to add
     let newBlades = 0;
     
+    // Calculate average fertility for density calculation
+    let totalFertility = 0;
+    let fertileVertexCount = 0;
+    
     // Process each fertile vertex from the list of marked vertices
     // This ensures grass grows on all marked vertices, even if the player moved quickly over them
     for (const vertex of fertileVertices) {
@@ -182,6 +187,10 @@ export class GrassSystem {
       
       // Skip if we've already placed grass for this vertex
       if (this.placedGrassBlades.has(vertex.index)) continue;
+      
+      // Add to total fertility for density calculation
+      totalFertility += vertex.fertility;
+      fertileVertexCount++;
       
       // Number of blades for this vertex based on fertility
       const bladesForVertex = Math.floor(GRASS_BLADES_PER_VERTEX * vertex.fertility);
@@ -266,6 +275,12 @@ export class GrassSystem {
       this.grassCount += newBlades;
       this.grassMesh.count = this.grassCount;
       this.grassMesh.instanceMatrix.needsUpdate = true;
+      
+      // Update grass density uniform based on average fertility
+      if (this.grassMaterial && fertileVertexCount > 0) {
+        const averageFertility = totalFertility / fertileVertexCount;
+        this.grassMaterial.uniforms.grassDensity.value = averageFertility;
+      }
     }
   }
 
@@ -277,15 +292,23 @@ export class GrassSystem {
       uniform vec3 sunDirection;
       uniform vec3 moonDirection;
       uniform float grassWidth;
+      uniform float grassDensity;
       
       varying vec2 vUv;
       varying vec3 vNormal;
       varying float vHeight;
       varying vec3 vWorldPosition;
+      varying vec3 vTerrainNormal;
+      varying float vViewDistance;
+      varying float vDensity;
       
-      // Helper function for easing out (similar to the one in the provided code)
+      // Helper functions for easing
       float easeOut(float x, float power) {
         return 1.0 - pow(1.0 - x, power);
+      }
+      
+      float easeIn(float x, float power) {
+        return pow(x, power);
       }
       
       // Function to create a rotation matrix around X axis
@@ -316,6 +339,9 @@ export class GrassSystem {
         // Calculate height percentage (0 at base, 1 at tip)
         float heightPercent = vertIndex / ${GRASS_BLADE_SEGMENTS.toFixed(1)};
         vHeight = heightPercent;
+        
+        // Pass density to fragment shader
+        vDensity = grassDensity;
         
         // Get instance matrix
         mat4 instanceMatrix = instanceMatrix;
@@ -355,6 +381,10 @@ export class GrassSystem {
         // Mix normals based on width percentage (U coordinate)
         vNormal = mix(rotatedNormal1, rotatedNormal2, uv.x);
         vNormal = normalize(vNormal);
+        
+        // Store the terrain normal (sphere surface normal at this point)
+        // This will be used for normal blending in the fragment shader
+        vTerrainNormal = normalize(instancePosition);
         
         // Convert to model-view space for view-dependent effects
         vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(transformedPosition, 1.0);
@@ -397,6 +427,9 @@ export class GrassSystem {
         vWorldPosition = worldPosition.xyz;
         gl_Position = projectionMatrix * viewMatrix * worldPosition;
         
+        // Calculate view distance for normal blending
+        vViewDistance = length(mvPosition.xyz);
+        
         // Override with the adjusted position
         gl_Position = projectionMatrix * mvPosition;
       }
@@ -409,14 +442,38 @@ export class GrassSystem {
       uniform vec3 sunColor;
       uniform vec3 moonDirection;
       uniform vec3 moonColor;
+      uniform float grassDensity;
       
       varying vec2 vUv;
       varying vec3 vNormal;
       varying float vHeight;
       varying vec3 vWorldPosition;
+      varying vec3 vTerrainNormal;
+      varying float vViewDistance;
+      varying float vDensity;
+      
+      // Constants for normal blending
+      const float TERRAIN_NORMAL_BLEND_START = 20.0;
+      const float TERRAIN_NORMAL_BLEND_END = 100.0;
+      
+      // Helper function for easing in
+      float easeIn(float x, float power) {
+        return pow(x, power);
+      }
       
       void main() {
-        vec3 normal = normalize(vNormal);
+        // Define base and tip colors for a more natural gradient
+        vec3 baseColour = vec3(0.05, 0.2, 0.01);  // Darker green at base
+        vec3 tipColour = vec3(0.5, 0.5, 0.1);     // Yellowish green at tip
+        
+        // Create a gradient from base to tip with improved shaping function
+        vec3 grassColor = mix(baseColour, tipColour, easeIn(vHeight, 4.0));
+        
+        // Blend the normal with the terrain normal depending on the distance
+        // This improves the appearance at a distance
+        float normalBlendFactor = smoothstep(
+          TERRAIN_NORMAL_BLEND_START, TERRAIN_NORMAL_BLEND_END, vViewDistance);
+        vec3 normal = normalize(mix(vNormal, vTerrainNormal, normalBlendFactor));
         
         // Calculate sun lighting
         float sunDot = max(0.0, dot(normal, normalize(sunDirection)));
@@ -425,13 +482,6 @@ export class GrassSystem {
         // Calculate moon lighting
         float moonDot = max(0.0, dot(normal, normalize(moonDirection)));
         float moonLight = 0.1 + 0.4 * moonDot; // Ambient + diffuse (moon is dimmer)
-        
-        // Base color (darker at bottom, lighter at top)
-        vec3 grassColor = mix(
-          vec3(0.0, 0.3, 0.0),  // Dark green at base
-          vec3(0.2, 0.8, 0.1),  // Light green at tip
-          vHeight
-        );
         
         // Calculate the angle between the vertex position and sun/moon
         // This helps determine if we're on the day or night side of the planet
@@ -443,17 +493,26 @@ export class GrassSystem {
         // Use a smooth transition between day and night
         float dayFactor = smoothstep(-0.2, 0.2, sunSide - moonSide);
         
-        // Apply sun lighting with sun color
-        vec3 sunLit = grassColor * sunLight * sunColor;
+        // Calculate ambient occlusion
+        // Use the density value passed from the vertex shader
+        // This creates darker areas where grass is denser
+        float aoForDensity = mix(1.0, 0.25, vDensity);
+        float ao = mix(aoForDensity, 1.0, easeIn(vHeight, 2.0));
         
-        // Apply moon lighting with moon color
-        vec3 moonLit = grassColor * moonLight * moonColor;
+        // Apply ambient occlusion to ambient lighting component
+        float ambientLight = 0.2 * ao;
+        
+        // Apply sun lighting with sun color (ambient + diffuse)
+        vec3 sunLit = grassColor * (ambientLight + 0.8 * sunDot) * sunColor;
+        
+        // Apply moon lighting with moon color (ambient + diffuse)
+        vec3 moonLit = grassColor * (ambientLight * 0.5 + 0.4 * moonDot) * moonColor;
         
         // Blend between sun and moon lighting
         vec3 finalColor = mix(moonLit, sunLit, dayFactor);
         
-        // Add slight ambient occlusion at the base
-        finalColor *= mix(0.7, 1.0, vHeight);
+        // Apply additional ambient occlusion at the base for more depth
+        finalColor *= mix(0.7, 1.0, easeIn(vHeight, 1.5));
         
         gl_FragColor = vec4(finalColor, 1.0);
       }
