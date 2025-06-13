@@ -17,10 +17,11 @@ export class Game {
   private backgroundCanvas: HTMLCanvasElement;
   private backgroundContext: CanvasRenderingContext2D | null;
   private backgroundTexture: THREE.CanvasTexture;
+  private backgroundMusic!: HTMLAudioElement; // For background music, using definite assignment assertion
   
   // Day and night gradient colors
   private readonly dayColors = {
-    top: '#87CEEB',    // Sky blue
+    top: '#77BEEB',    // Sky blue
     bottom: '#FFFFFF'  // White
   };
   
@@ -85,6 +86,9 @@ export class Game {
     // Set up coverage UI
     this.setupCoverageUI();
 
+    // Set up background music
+    this.setupBackgroundMusic();
+
     // Handle window resize
     window.addEventListener('resize', this.onWindowResize.bind(this));
   }
@@ -104,6 +108,11 @@ export class Game {
     // Remove event listeners
     window.removeEventListener('keydown', this.handleKeyDown.bind(this));
     window.removeEventListener('keyup', this.handleKeyUp.bind(this));
+    
+    // Stop background music
+    if (this.backgroundMusic) {
+      this.backgroundMusic.pause();
+    }
     
     // Clean up resources
     this.grassSystem.dispose();
@@ -340,6 +349,51 @@ export class Game {
     console.log(`Coverage percentage: ${roundedPercentage}%`);
   }
   
+  private setupBackgroundMusic(): void {
+    // Create audio element for background music
+    this.backgroundMusic = new Audio('./assets/bgmusic_1.mp3');
+    this.backgroundMusic.loop = true; // Set to loop continuously
+    this.backgroundMusic.volume = 0.3; // Set volume to 30% to avoid being too loud
+    this.backgroundMusic.autoplay = true; // Start playing automatically
+    
+    // Log for debugging
+    console.log("Background music initialized with loop enabled");
+    
+    // Handle potential playback issues
+    this.backgroundMusic.addEventListener('error', (e: Event) => {
+      console.error("Error loading background music:", e);
+    });
+    
+    // Set a random start time within the duration of the audio once it's loaded
+    this.backgroundMusic.addEventListener('loadedmetadata', () => {
+      if (this.backgroundMusic.duration) {
+        const randomTime = Math.random() * this.backgroundMusic.duration;
+        this.backgroundMusic.currentTime = randomTime;
+        console.log(`Set random start time to ${randomTime.toFixed(2)} seconds`);
+      }
+    });
+    
+    // Attempt to play (some browsers require user interaction)
+    const playPromise = this.backgroundMusic.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((error: Error) => {
+        console.log("Autoplay prevented. Music will start on user interaction.", error);
+        // Add event listener to play music on first user interaction
+        const startMusic = () => {
+          // Set random start time on first interaction if not already set
+          if (this.backgroundMusic.currentTime === 0 && this.backgroundMusic.duration) {
+            const randomTime = Math.random() * this.backgroundMusic.duration;
+            this.backgroundMusic.currentTime = randomTime;
+            console.log(`Set random start time to ${randomTime.toFixed(2)} seconds on user interaction`);
+          }
+          this.backgroundMusic.play().catch((err: Error) => console.error("Failed to play music:", err));
+          document.removeEventListener('click', startMusic);
+        };
+        document.addEventListener('click', startMusic);
+      });
+    }
+  }
+
   private onWindowResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Constants for grass generation
-const GRASS_BLADES_PER_VERTEX = 300; // Number of grass blades per fertile vertex
+const GRASS_BLADES_PER_VERTEX = 100; // Number of grass blades per fertile vertex
 const GRASS_BLADE_SEGMENTS = 5; // Number of segments per blade (for bending)
 const GRASS_BLADE_HEIGHT = 1; // Height of each grass blade
 const GRASS_BLADE_WIDTH = 0.08; // Width of each grass blade
@@ -506,7 +506,7 @@ export class GrassSystem {
         vec3 sunLit = grassColor * (ambientLight + 0.8 * sunDot) * sunColor;
         
         // Apply moon lighting with moon color (ambient + diffuse)
-        vec3 moonLit = grassColor * (ambientLight * 0.5 + 0.4 * moonDot) * moonColor;
+        vec3 moonLit = grassColor * (ambientLight * 1.5 + 0.4 * moonDot) * moonColor;
         
         // Blend between sun and moon lighting
         vec3 finalColor = mix(moonLit, sunLit, dayFactor);

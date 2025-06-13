@@ -156,7 +156,7 @@ export class WorldSphere {
     moonSphere.material.color.set(0xccddff);
     moonSphere.position.copy(this.moon.position);
     
-    // Create clouds
+  // Create clouds
     this.clouds = new THREE.Group();
     
     // Create several cloud clusters
@@ -177,6 +177,9 @@ export class WorldSphere {
       const normal = new THREE.Vector3(x, y, z).normalize();
       const up = new THREE.Vector3(0, 1, 0);
       cloudCluster.quaternion.setFromUnitVectors(up, normal);
+      
+      // Assign a random rotation speed for variety (between 0.0005 and 0.0015)
+      cloudCluster.userData.rotationSpeed = 0.0005 + Math.random() * 0.001;
       
       this.clouds.add(cloudCluster);
     }
@@ -229,8 +232,30 @@ export class WorldSphere {
   // No longer need applyRotation as the sphere doesn't rotate anymore
 
   update(): void {
-    // The sphere is now stationary, so no rotation updates needed
-    // This method is kept for compatibility with existing code
+    // The sphere is now stationary, but we update cloud rotation
+    this.updateCloudRotation();
+  }
+  
+  // Method to update cloud rotation around the center of the sphere
+  private updateCloudRotation(): void {
+    // Iterate through each cloud cluster
+    this.clouds.children.forEach((cloudCluster) => {
+      // Get the rotation speed from userData
+      const rotationSpeed = cloudCluster.userData.rotationSpeed || 0.001;
+      
+      // Rotate around the Y-axis (vertical axis) at the center of the sphere
+      // This creates a general eastward or westward movement for all clouds
+      const currentPosition = cloudCluster.position.clone();
+      const rotatedPosition = currentPosition.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationSpeed);
+      
+      // Update cloud position
+      cloudCluster.position.copy(rotatedPosition);
+      
+      // Re-orient cloud to face outward from sphere center after rotation
+      const normal = rotatedPosition.clone().normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      cloudCluster.quaternion.setFromUnitVectors(up, normal);
+    });
   }
 
   // Apply Perlin noise to the sphere geometry to create terrain
@@ -346,7 +371,7 @@ export class WorldSphere {
         }
         
         // Gradually increase fertility for future grass growth
-        state.fertility = Math.min(1.0, state.fertility + 0.01);
+        state.fertility = 1;//Math.min(1.0, state.fertility + 0.18);
       }
     }
     

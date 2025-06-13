@@ -2,11 +2,11 @@ import * as THREE from 'three';
 
 export class Player {
   private mesh: THREE.Mesh;
-  private targetHeight: number = 0.6; // Distance from bottom of player to surface
+  private targetHeight: number = 0.9; // Distance from bottom of player to surface
   private radius: number = 0.5; // Size of the player orb
   private floatTime: number = 0; // Time counter for floating animation
-  private floatSpeed: number = 3; // Speed of floating animation
-  private floatAmplitude: number = 0.1; // How high the floating motion goes
+  private floatSpeed: number = 10; // Speed of floating animation
+  private floatAmplitude: number = 0.2; // How high the floating motion goes
   private lerpFactor: number = 0.05; // Lower value = smoother movement
   
   // Movement properties
@@ -14,7 +14,7 @@ export class Player {
   private dampingFactor: number = 0.95; // For slowing down movement
   
   // Coloring properties
-  private coloringRadius: number = 2.2; // Radius around player that colors the sphere
+  private coloringRadius: number = 1.2; // Radius around player that colors the sphere
   
   // Particle system properties
   private particles: THREE.Mesh[] = [];
@@ -29,18 +29,18 @@ export class Player {
     // Create a sphere for the player
     const geometry = new THREE.SphereGeometry(this.radius, 32, 32);
     
-    // Create soft matte material
+    // Create soft matte material with blue color for water-like appearance
     const material = new THREE.MeshStandardMaterial({
-      color: 0x88ff88,
-      metalness: 0.1,
-      roughness: 0.7,
+      color: 0x0088FF, // Blue color to resemble water
+      metalness: 0.7, // Increased metalness for reflective water effect
+      roughness: 0.5, // Reduced roughness for a smoother, watery look
     });
     
     this.mesh = new THREE.Mesh(geometry, material);
     
     // Enable shadow casting
-    this.mesh.castShadow = true;
-    this.mesh.receiveShadow = true;
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = false;
 
     // Initialize particle system
     this.particleGeometry = new THREE.SphereGeometry(0.05, 8, 8); // Tiny spheres
