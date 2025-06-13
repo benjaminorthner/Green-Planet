@@ -238,7 +238,7 @@ export class Game {
     const uiContainer = document.getElementById('ui-container') || document.body;
     
     // Remove existing coverage display if it exists
-    const existingCoverageDisplay = document.getElementById('coverage-display');
+    const existingCoverageDisplay = document.getElementById('coverage-container');
     if (existingCoverageDisplay) {
       existingCoverageDisplay.remove();
     }
@@ -247,55 +247,97 @@ export class Game {
     const coverageContainer = document.createElement('div');
     coverageContainer.id = 'coverage-container';
     coverageContainer.style.position = 'absolute';
-    coverageContainer.style.bottom = '20px';
+    coverageContainer.style.top = '20px'; // Positioned at the top center
     coverageContainer.style.left = '50%';
-    coverageContainer.style.transform = 'translateX(-50%)';
-    coverageContainer.style.width = '300px';
+    coverageContainer.style.transform = 'translateX(-100%)';
+    coverageContainer.style.width = '400px'; // Wide container for visibility
     coverageContainer.style.padding = '10px';
-    coverageContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    coverageContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.8)'; // Dark background for contrast
     coverageContainer.style.borderRadius = '10px';
     coverageContainer.style.color = 'white';
     coverageContainer.style.fontFamily = 'Arial, sans-serif';
     coverageContainer.style.textAlign = 'center';
+    coverageContainer.style.zIndex = '9999'; // High z-index to ensure it's on top
+    coverageContainer.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.5)'; // Shadow for depth
+    
+    // Create title
+    const title = document.createElement('div');
+    title.textContent = 'Planet Coverage';
+    title.style.fontSize = '18px';
+    title.style.fontWeight = 'bold';
+    title.style.marginBottom = '10px';
+    
+    // Create percentage text
+    const percentageText = document.createElement('div');
+    percentageText.id = 'coverage-percentage';
+    percentageText.style.fontSize = '16px';
+    percentageText.style.fontWeight = 'bold';
+    percentageText.style.marginBottom = '10px';
+    percentageText.textContent = 'Coverage: 0%';
     
     // Create progress bar container
     const progressContainer = document.createElement('div');
     progressContainer.style.width = '100%';
-    progressContainer.style.height = '10px';
-    progressContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+    progressContainer.style.height = '25px'; // Tall progress bar for visibility
+    progressContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; // Light grey background
     progressContainer.style.borderRadius = '5px';
     progressContainer.style.overflow = 'hidden';
+    progressContainer.style.border = '2px solid rgba(255, 255, 255, 0.5)'; // Border for definition
     
     // Create progress bar
     const progressBar = document.createElement('div');
     progressBar.id = 'coverage-progress';
-    progressBar.style.width = '0%';
+    progressBar.style.width = '0%'; // Start at 0%
     progressBar.style.height = '100%';
-    progressBar.style.backgroundColor = '#4CAF50';
-    progressBar.style.transition = 'width 0.3s ease-in-out';
+    progressBar.style.backgroundColor = '#00FF00'; // Bright green for visibility
+    progressBar.style.transition = 'width 0.5s ease-in-out'; // Smooth transition
+    progressBar.style.borderRadius = '3px';
     
     // Assemble UI
     progressContainer.appendChild(progressBar);
+    coverageContainer.appendChild(title);
+    coverageContainer.appendChild(percentageText);
     coverageContainer.appendChild(progressContainer);
     uiContainer.appendChild(coverageContainer);
     
-    // Store references
+    // Store reference to progress bar
     this.coverageProgress = progressBar;
+    
+    // Log for debugging
+    console.log("Coverage UI setup complete, container added to DOM");
   }
   
   private updateCoverageUI(percentage: number): void {
+    // Ensure percentage is a valid number
+    if (isNaN(percentage) || percentage < 0) {
+      percentage = 0;
+    }
+    
+    // Round to 2 decimal places for display
+    const roundedPercentage = Math.round(percentage * 100) / 100;
+    
+    // Update progress bar width
     if (this.coverageProgress) {
-      this.coverageProgress.style.width = `${percentage}%`;
+      this.coverageProgress.style.width = `${roundedPercentage}%`;
       
       // Change color based on progress
-      if (percentage < 30) {
+      if (roundedPercentage < 30) {
         this.coverageProgress.style.backgroundColor = '#4CAF50'; // Green
-      } else if (percentage < 70) {
+      } else if (roundedPercentage < 70) {
         this.coverageProgress.style.backgroundColor = '#2196F3'; // Blue
       } else {
         this.coverageProgress.style.backgroundColor = '#9C27B0'; // Purple
       }
     }
+    
+    // Update percentage text
+    const percentageText = document.getElementById('coverage-percentage');
+    if (percentageText) {
+      percentageText.textContent = `Coverage: ${roundedPercentage.toFixed(2)}%`;
+    }
+    
+    // Log the percentage for debugging
+    console.log(`Coverage percentage: ${roundedPercentage}%`);
   }
   
   private onWindowResize(): void {

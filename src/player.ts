@@ -20,7 +20,7 @@ export class Player {
   private particles: THREE.Mesh[] = [];
   private particleGeometry: THREE.SphereGeometry;
   private particleMaterial: THREE.MeshStandardMaterial;
-  private emissionRate: number = 1; // Particles per frame
+  private emissionRate: number = 10; // Particles per frame
   private emissionTimer: number = 0;
   private gravity: number = 0.01;
   private particleLifetime: number = 200; // Frames before particle is removed
@@ -45,9 +45,9 @@ export class Player {
     // Initialize particle system
     this.particleGeometry = new THREE.SphereGeometry(0.05, 8, 8); // Tiny spheres
     this.particleMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8B4513, // Brown color for seeds
-      roughness: 0.8,
-      metalness: 0.1
+      color: 0x0088FF, // Blue color for water-like effect
+      roughness: 0.5, // Reduced roughness for a more watery appearance
+      metalness: 0.7 // Increased metalness for a reflective look
     });
   }
   

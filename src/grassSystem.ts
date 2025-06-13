@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 // Constants for grass generation
-const GRASS_BLADES_PER_VERTEX = 150; // Number of grass blades per fertile vertex
+const GRASS_BLADES_PER_VERTEX = 300; // Number of grass blades per fertile vertex
 const GRASS_BLADE_SEGMENTS = 5; // Number of segments per blade (for bending)
 const GRASS_BLADE_HEIGHT = 1; // Height of each grass blade
-const GRASS_BLADE_WIDTH = 0.1; // Width of each grass blade
+const GRASS_BLADE_WIDTH = 0.08; // Width of each grass blade
 
 export class GrassSystem {
   private scene: THREE.Scene;
@@ -63,8 +63,8 @@ export class GrassSystem {
       this.maxGrassCount
     );
     this.grassMesh.frustumCulled = false; // Disable frustum culling for now
-    this.grassMesh.castShadow = true;
-    this.grassMesh.receiveShadow = true;
+    this.grassMesh.castShadow = false;
+    this.grassMesh.receiveShadow = false;
     this.scene.add(this.grassMesh);
 
     // Initialize compute shader setup
