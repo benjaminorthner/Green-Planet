@@ -1,5 +1,7 @@
 # Green Sphere
 
+![Green Sphere Preview](./public/assets/screenshot.jpeg)
+
 A 3D game built with Three.js where your goal is to cover a sphere with grass. This game was fully vibe coded in a day as part of a hackathon, showcasing rapid development and creative energy.
 
 ## Installation
@@ -41,6 +43,7 @@ This will generate optimized files in the output directory specified in `webpack
 ## How to Play
 
 In Green Sphere, you control a sphere that emits particles. Move around the surface of a larger sphere to cover it with grass. Use the WASD keys to navigate your player and spread grass coverage across the planet.
+
 
 ## Dependencies
 
